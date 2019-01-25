@@ -14,23 +14,27 @@ object Deflate64DecompressionTest extends IOApp {
       import Kompressor._
       import ConsoleIO._
 
-      for {
-        file <- openZipFile(archiveName)
-        innerEntries <- file.extractEntries
-        entryMap = innerEntries.map(zae => zae.getName -> zae).toMap
-        _ <- putStrLn("Files in archive:")
-        _ <- entryMap.keys.toList.traverse(putStrLn)
-        exitCode <- entryMap.get(fileName) match {
-          case Some(entry) =>
-            val stream = openStream(file, entry)
-            for {
-              count <- stream.use(enumerateStream)
-              _ <- putStrLn(s"The byte size of the entry is $count")
-            } yield ExitCode.Success
-          case None =>
-            ConsoleIO.putError(s"Cannot find the file $fileName in the archive") *> IO(ExitCode.Error)
-        }
-      } yield exitCode
+      openZipFile(archiveName).use {
+        file =>
+          for {
+            innerEntries <- file.extractEntries
+            entryMap = innerEntries.map(zae => zae.getName -> zae).toMap
+            _ <- putStrLn("Files in archive:")
+            _ <- entryMap.keys.toList.traverse(putStrLn)
+            exitCode <- entryMap.get(fileName) match {
+              case Some(entry) =>
+                val stream = openStream(file, entry)
+
+                for {
+                  count <- stream.use(enumerateStream)
+                  _ <- putStrLn(s"The byte size of the entry is $count")
+                } yield ExitCode.Success
+
+              case None =>
+                ConsoleIO.putError(s"Cannot find the file $fileName in the archive") *> IO(ExitCode.Error)
+            }
+          } yield exitCode
+      }
 
     case _ =>
       ConsoleIO.putError("Please supply an argument of the file you want to introspect") *> IO(ExitCode.Error)
@@ -44,7 +48,8 @@ object ConsoleIO {
 }
 
 object Kompressor {
-  def openZipFile(f: String): IO[ZipFile] = IO(new ZipFile(f))
+  def openZipFile(f: String): Resource[IO, ZipFile] =
+    Resource.make(IO(new ZipFile(f)))(zf => IO(zf.close()))
 
   def openStream(file: ZipFile, entry: ZipArchiveEntry): Resource[IO, InputStream] = {
     val acquireStream = IO(file.getInputStream(entry))
