@@ -9,6 +9,10 @@ import org.apache.commons.compress.archivers.zip.{ZipArchiveEntry, ZipFile}
 import scala.annotation.tailrec
 
 object Deflate64DecompressionTest extends IOApp {
+
+  def endWithError(message: String): IO[ExitCode] =
+    ConsoleIO.putStrLn(message).as(ExitCode.Error)
+
   override def run(args: List[String]): IO[ExitCode] = args match {
     case archiveName :: fileName :: Nil =>
       import Kompressor._
@@ -31,13 +35,13 @@ object Deflate64DecompressionTest extends IOApp {
                 } yield ExitCode.Success
 
               case None =>
-                ConsoleIO.putError(s"Cannot find the file $fileName in the archive") *> IO(ExitCode.Error)
+                endWithError(s"Cannot find the file $fileName in the archive")
             }
           } yield exitCode
       }
 
     case _ =>
-      ConsoleIO.putError("Please supply an argument of the file you want to introspect") *> IO(ExitCode.Error)
+      endWithError("Please supply an argument of the file you want to introspect")
   }
 }
 
